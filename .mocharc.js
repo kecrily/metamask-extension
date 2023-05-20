@@ -9,6 +9,7 @@ module.exports = {
     './app/scripts/controllers/network/**/*.test.js',
     './app/scripts/controllers/permissions/**/*.test.js',
     './app/scripts/controllers/mmi-controller.test.js',
+    './app/scripts/controllers/transactions/pending-tx-tracker.test.js',
     './app/scripts/constants/error-utils.test.js',
   ],
   recursive: true,
