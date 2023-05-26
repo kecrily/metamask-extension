@@ -183,7 +183,11 @@ export default class AdvancedTab extends PureComponent {
                   if (err) {
                     displayWarning(t('stateLogError'));
                   } else {
-                    exportAsFile(`${t('stateLogFileName')}.json`, result);
+                    exportAsFile(
+                      `${t('stateLogFileName')}.json`,
+                      result,
+                      'application/json',
+                    );
                   }
                 });
               }}
