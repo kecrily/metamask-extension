@@ -1347,11 +1347,13 @@ export function markNotificationsAsRead(
 }
 
 export function revokeDynamicSnapPermissions(
-  permissions: string[],
+  snapId: string,
+  permissionNames: string[],
 ): ThunkAction<void, MetaMaskReduxState, unknown, AnyAction> {
   return async (dispatch: MetaMaskReduxDispatch) => {
     await submitRequestToBackground('revokeDynamicSnapPermissions', [
-      permissions,
+      snapId,
+      permissionNames,
     ]);
     await forceUpdateMetamaskState(dispatch);
   };
