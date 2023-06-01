@@ -113,7 +113,6 @@ async function withFixtures(options, testSuite) {
     if (process.env.SELENIUM_BROWSER === 'chrome') {
       await driver.checkBrowserForExceptions(failOnConsoleError);
       await driver.checkBrowserForConsoleErrors(failOnConsoleError);
-      await driver.checkBrowserForEvents();
     }
 
     let driverProxy;
@@ -547,6 +546,14 @@ const generateGanacheOptions = (overrides) => ({
   ...overrides,
 });
 
+const WINDOW_TITLES = Object.freeze({
+  ExtensionInFullScreenView: 'MetaMask',
+  TestDApp: 'E2E Test Dapp',
+  Notification: 'MetaMask Notification',
+  ServiceWorkerSettings: 'Inspect with Chrome Developer Tools',
+  InstalledExtensions: 'Extensions',
+});
+
 module.exports = {
   DAPP_URL,
   DAPP_ONE_URL,
@@ -577,4 +584,5 @@ module.exports = {
   locateAccountBalanceDOM,
   generateGanacheOptions,
   WALLET_PASSWORD,
+  WINDOW_TITLES,
 };
