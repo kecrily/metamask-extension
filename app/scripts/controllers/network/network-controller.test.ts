@@ -738,7 +738,7 @@ describe('NetworkController', () => {
     });
 
     describe('when the request for the latest block responds with null', () => {
-      it('persists false to state as whether the network supports EIP-1559', async () => {
+      it('throws as it can not determine if the network supports EIP-1559', async () => {
         await withController(
           {
             state: {
@@ -757,40 +757,46 @@ describe('NetworkController', () => {
                   result: null,
                 },
               },
+              {
+                request: {
+                  method: 'eth_getBlockByNumber',
+                },
+                response: {
+                  result: null,
+                },
+              },
+              {
+                request: {
+                  method: 'eth_getBlockByNumber',
+                },
+                response: {
+                  result: null,
+                },
+              },
+              {
+                request: {
+                  method: 'eth_getBlockByNumber',
+                },
+                response: {
+                  result: null,
+                },
+              },
             ]);
             const fakeNetworkClient = buildFakeClient(fakeProvider);
             mockCreateNetworkClient().mockReturnValue(fakeNetworkClient);
-            await controller.initializeProvider();
 
-            await controller.getEIP1559Compatibility();
+            await withoutCallingLookupNetwork({
+              controller,
+              operation: async () => {
+                await controller.initializeProvider();
+              },
+            });
 
-            expect(controller.store.getState().networkDetails.EIPS[1559]).toBe(
-              false,
+            await expect(controller.getEIP1559Compatibility()).rejects.toThrow(
+              new Error('Unable to fetch last block'),
             );
           },
         );
-      });
-
-      it('returns false', async () => {
-        await withController(async ({ controller }) => {
-          const fakeProvider = buildFakeProvider([
-            {
-              request: {
-                method: 'eth_getBlockByNumber',
-              },
-              response: {
-                result: null,
-              },
-            },
-          ]);
-          const fakeNetworkClient = buildFakeClient(fakeProvider);
-          mockCreateNetworkClient().mockReturnValue(fakeNetworkClient);
-          await controller.initializeProvider();
-
-          const supportsEIP1559 = await controller.getEIP1559Compatibility();
-
-          expect(supportsEIP1559).toBe(false);
-        });
       });
     });
 
