@@ -11,12 +11,15 @@ const PhishingWarningPageServer = require('./phishing-warning-page-server');
 const { buildWebDriver } = require('./webdriver');
 const { PAGES } = require('./webdriver/driver');
 const GanacheSeeder = require('./seeder/ganache-seeder');
-
-const tinyDelayMs = 200;
-const regularDelayMs = tinyDelayMs * 2;
-const largeDelayMs = regularDelayMs * 2;
-const veryLargeDelayMs = largeDelayMs * 2;
-const dappBasePort = 8080;
+const {
+  DAPP_URL,
+  STALELIST_URL,
+  emptyHtmlPage,
+  PRIVATE_KEY,
+  SERVICE_WORKER_URL,
+  WINDOW_TITLES,
+  dappBasePort,
+} = require('./constants');
 
 const createDownloadFolder = async (downloadsFolder) => {
   await fs.rm(downloadsFolder, { recursive: true, force: true });
@@ -383,27 +386,11 @@ const testSRPDropdownIterations = async (options, driver, iterations) => {
   }
 };
 
-const DAPP_URL = 'http://127.0.0.1:8080';
-const DAPP_ONE_URL = 'http://127.0.0.1:8081';
-
 const openDapp = async (driver, contract = null, dappURL = DAPP_URL) => {
   contract
     ? await driver.openNewPage(`${dappURL}/?contract=${contract}`)
     : await driver.openNewPage(dappURL);
 };
-const STALELIST_URL =
-  'https://static.metafi.codefi.network/api/v1/lists/stalelist.json';
-
-const emptyHtmlPage = `<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="utf-8">
-    <title>title</title>
-  </head>
-  <body>
-    Empty page
-  </body>
-</html>`;
 
 /**
  * Setup fetch mocks for the phishing detection feature.
@@ -471,15 +458,11 @@ function mockPhishingDetection(mockServer) {
   });
 }
 
-const PRIVATE_KEY =
-  '0x7C9529A67102755B7E6102D6D950AC5D5863C98713805CEC576B945B15B71EAC';
-
 const generateETHBalance = (eth) => convertToHexValue(eth * 10 ** 18);
+
 const defaultGanacheOptions = {
   accounts: [{ secretKey: PRIVATE_KEY, balance: generateETHBalance(25) }],
 };
-
-const SERVICE_WORKER_URL = 'chrome://inspect/#service-workers';
 
 const sendTransaction = async (driver, recipientAddress, quantity) => {
   await driver.clickElement('[data-testid="eth-overview-send"]');
@@ -505,12 +488,6 @@ const findAnotherAccountFromAccountList = async (
   return accountMenuItemSelector;
 };
 
-const TEST_SEED_PHRASE =
-  'forum vessel pink push lonely enact gentle tail admit parrot grunt dress';
-
-const TEST_SEED_PHRASE_TWO =
-  'phrase upgrade clock rough situate wedding elder clever doctor stamp excess tent';
-
 // Usually happens when onboarded to make sure the state is retrieved from metamaskState properly
 const assertAccountBalanceForDOM = async (driver, ganacheServer) => {
   const balance = await ganacheServer.getBalance();
@@ -528,44 +505,78 @@ const locateAccountBalanceDOM = async (driver, ganacheServer) => {
     text: `${balance} ETH`,
   });
 };
-const DEFAULT_PRIVATE_KEY =
-  '0x7C9529A67102755B7E6102D6D950AC5D5863C98713805CEC576B945B15B71EAC';
-const WALLET_PASSWORD = 'correct horse battery staple';
 
 const DEFAULT_GANACHE_OPTIONS = {
   accounts: [
     {
-      secretKey: DEFAULT_PRIVATE_KEY,
+      secretKey: PRIVATE_KEY,
       balance: generateETHBalance(25),
     },
   ],
 };
 
-const generateGanacheOptions = (overrides) => ({
-  ...DEFAULT_GANACHE_OPTIONS,
-  ...overrides,
-});
+const generateGanacheOptions = (overrides) => {
+  console.log('asdf');
 
-const WINDOW_TITLES = Object.freeze({
-  ExtensionInFullScreenView: 'MetaMask',
-  TestDApp: 'E2E Test Dapp',
-  Notification: 'MetaMask Notification',
-  ServiceWorkerSettings: 'Inspect with Chrome Developer Tools',
-  InstalledExtensions: 'Extensions',
-});
+  return {
+    ...DEFAULT_GANACHE_OPTIONS,
+    ...overrides,
+  };
+};
+
+async function unlockWallet(driver, walletPassword) {
+  await driver.fill('#password', walletPassword);
+  await driver.press('#password', driver.Key.ENTER);
+}
+
+async function terminateServiceWorker(driver) {
+  // console.log('terminateServiceWorker');
+  await driver.openNewPage(SERVICE_WORKER_URL);
+
+  await driver.clickElement({
+    text: 'Service workers',
+    tag: 'button',
+  });
+
+  await driver.clickElement({
+    text: 'terminate',
+    tag: 'span',
+  });
+
+  const serviceWorkerTab = await switchToWindow(
+    driver,
+    WINDOW_TITLES.ServiceWorkerSettings,
+  );
+
+  await driver.closeWindowHandle(serviceWorkerTab);
+}
+
+async function switchToWindow(driver, windowTitle) {
+  const windowHandles = await driver.getAllWindowHandles();
+
+  return await driver.switchToWindowWithTitle(windowTitle, windowHandles);
+}
+
+async function connectToDapp(driver) {
+  await driver.findClickableElement({ text: 'Connect', tag: 'button' });
+  await driver.clickElement({ text: 'Connect', tag: 'button' });
+
+  await switchToWindow(driver, WINDOW_TITLES.Notification);
+
+  await driver.findClickableElement({ text: 'Next', tag: 'button' });
+  await driver.clickElement({ text: 'Next', tag: 'button' });
+
+  await driver.findClickableElement({ text: 'Connect', tag: 'button' });
+  await driver.clickElement({ text: 'Connect', tag: 'button' });
+}
+
+async function sleepSeconds(sec) {
+  return new Promise((resolve) => setTimeout(resolve, sec * 1000));
+}
 
 module.exports = {
-  DAPP_URL,
-  DAPP_ONE_URL,
-  SERVICE_WORKER_URL,
-  TEST_SEED_PHRASE,
-  TEST_SEED_PHRASE_TWO,
   getWindowHandles,
   convertToHexValue,
-  tinyDelayMs,
-  regularDelayMs,
-  largeDelayMs,
-  veryLargeDelayMs,
   withFixtures,
   importSRPOnboardingFlow,
   completeImportSRPOnboardingFlow,
@@ -583,6 +594,10 @@ module.exports = {
   assertAccountBalanceForDOM,
   locateAccountBalanceDOM,
   generateGanacheOptions,
-  WALLET_PASSWORD,
-  WINDOW_TITLES,
+  sleepSeconds,
+  terminateServiceWorker,
+  unlockWallet,
+  generateETHBalance,
+  switchToWindow,
+  connectToDapp,
 };

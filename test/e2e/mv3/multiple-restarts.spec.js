@@ -1,12 +1,16 @@
 const { strict: assert } = require('assert');
+const FixtureBuilder = require('../fixture-builder');
 const {
   withFixtures,
-  openDapp,
   generateGanacheOptions,
-  WALLET_PASSWORD,
-  WINDOW_TITLES,
+  unlockWallet,
+  terminateServiceWorker,
+  openDapp,
+  switchToWindow,
+  sleepSeconds,
+  connectToDapp,
 } = require('../helpers');
-const FixtureBuilder = require('../fixture-builder');
+const { WALLET_PASSWORD, WINDOW_TITLES } = require('../constants');
 
 describe('MV3 - Restart service worker multiple times', function () {
   it('Simple simple send flow within full screen view should still be usable', async function () {
@@ -159,7 +163,7 @@ describe('MV3 - Restart service worker multiple times', function () {
     );
   });
 
-  it('Should continue to support send ETH dApp interactions after service worker re-starts multiple times', async function () {
+  it.only('Should continue to support send ETH dApp interactions after service worker re-starts multiple times', async function () {
     await withFixtures(
       {
         dapp: true,
@@ -179,24 +183,37 @@ describe('MV3 - Restart service worker multiple times', function () {
 
         await openDapp(driver);
 
+        await connectToDapp(driver);
+
         await clickSendButton(driver);
-        await driver.waitUntilXWindowHandles(2);
+
+        await driver.waitUntilXWindowHandles(4);
+
+        await sleepSeconds(10);
+
+        await switchToWindow(driver, WINDOW_TITLES.TestDApp);
+
+        await terminateServiceWorker(driver);
+
+        await driver.waitUntilXWindowHandles(4);
+
+        await clickSendButton(driver);
+        await driver.waitUntilXWindowHandles(4);
 
         await switchToWindow(driver, WINDOW_TITLES.TestDApp);
         await terminateServiceWorker(driver);
-        await driver.waitUntilXWindowHandles(2);
+
+        console.log(5);
 
         await clickSendButton(driver);
-        await driver.waitUntilXWindowHandles(2);
-
-        await switchToWindow(driver, WINDOW_TITLES.TestDApp);
-        await terminateServiceWorker(driver);
-
-        await clickSendButton(driver);
-        await driver.waitUntilXWindowHandles(2);
-
+        console.log(6);
+        const windowHandles = await driver.getAllWindowHandles();
+        console.log({ windowHandles });
+        await driver.waitUntilXWindowHandles(4);
+        console.log(7);
+        await sleepSeconds(15);
         await assertNumberOfTransactionsInPopUp(driver, 3);
-
+        console.log(8);
         await confirmETHSendNotification(driver, 1);
 
         await assertNumberOfTransactionsInPopUp(driver, 2);
@@ -208,14 +225,22 @@ describe('MV3 - Restart service worker multiple times', function () {
     );
 
     async function clickSendButton(driver) {
+      console.log('clickSendButton');
       // Click send button
       await switchToWindow(driver, WINDOW_TITLES.TestDApp);
 
+      // console.log('a');
       await driver.waitForSelector({
         css: '#sendButton',
         text: 'Send',
       });
-      await driver.clickElement('#sendButton');
+      // console.log('b');
+      // await driver.clickElement('#sendButton');
+      await driver.clickElement({
+        css: '#sendButton',
+        text: 'Send',
+      });
+      // console.log('c');
     }
 
     async function confirmETHSendNotification(driver, amount) {
@@ -347,39 +372,3 @@ describe('MV3 - Restart service worker multiple times', function () {
     }
   });
 });
-
-async function unlockWallet(driver, walletPassword) {
-  await driver.fill('#password', walletPassword);
-  await driver.press('#password', driver.Key.ENTER);
-}
-
-async function terminateServiceWorker(driver) {
-  await driver.openNewPage('chrome://inspect/#service-workers/');
-
-  await driver.clickElement({
-    text: 'Service workers',
-    tag: 'button',
-  });
-
-  await driver.clickElement({
-    text: 'terminate',
-    tag: 'span',
-  });
-
-  const serviceWorkerTab = await switchToWindow(
-    driver,
-    WINDOW_TITLES.ServiceWorkerSettings,
-  );
-
-  await driver.closeWindowHandle(serviceWorkerTab);
-}
-
-async function switchToWindow(driver, windowTitle) {
-  const windowHandles = await driver.getAllWindowHandles();
-
-  return await driver.switchToWindowWithTitle(windowTitle, windowHandles);
-}
-
-async function sleepSeconds(sec) {
-  return new Promise((resolve) => setTimeout(resolve, sec * 1000));
-}
