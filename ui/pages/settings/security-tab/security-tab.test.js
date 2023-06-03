@@ -1,31 +1,13 @@
-import {
-  fireEvent,
-  queryByRole,
-  screen,
-  waitFor,
-} from '@testing-library/react';
+import { fireEvent, queryByRole, screen } from '@testing-library/react';
 import React from 'react';
 import configureMockStore from 'redux-mock-store';
+import thunk from 'redux-thunk';
 import mockState from '../../../../test/data/mock-state.json';
 import { renderWithProvider } from '../../../../test/lib/render-helpers';
 import SecurityTab from './security-tab.container';
 
-const mockSetFeatureFlag = jest.fn();
-const mockSetParticipateInMetaMetrics = jest.fn();
-const mockSetUsePhishDetect = jest.fn();
-const mockSetUseCurrencyRateCheck = jest.fn();
-
-jest.mock('../../../store/actions.ts', () => {
-  return {
-    setFeatureFlag: () => mockSetFeatureFlag,
-    setParticipateInMetaMetrics: () => mockSetParticipateInMetaMetrics,
-    setUsePhishDetect: () => mockSetUsePhishDetect,
-    setUseCurrencyRateCheck: () => mockSetUseCurrencyRateCheck,
-  };
-});
-
 describe('Security Tab', () => {
-  const mockStore = configureMockStore()(mockState);
+  const mockStore = configureMockStore([thunk])(mockState);
 
   function testToggleCheckbox(testId, initialState) {
     renderWithProvider(<SecurityTab />, mockStore);
@@ -35,10 +17,10 @@ describe('Security Tab', () => {
 
     expect(checkbox).toHaveAttribute('value', initialState ? 'true' : 'false');
 
-    // TODO: This actually doesn't fire the onToggle method of the ToggleButton, and it never has in this test suite.
-    //       Implementing it properly requires a lot of mocks.
+    fireEvent.click(checkbox); // This fires the onToggle method of the ToggleButton, but it doesn't change the value of the checkbox
+
     fireEvent.change(checkbox, {
-      target: { value: !initialState },
+      target: { value: !initialState }, // This changes the value of the checkbox
     });
 
     expect(checkbox).toHaveAttribute('value', initialState ? 'false' : 'true');
