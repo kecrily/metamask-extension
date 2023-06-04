@@ -120,3 +120,7 @@ export function renderWithUserEvent(jsx) {
     ...render(jsx),
   };
 }
+
+export function t(key) {
+  return getMessage('en', en, key);
+}
