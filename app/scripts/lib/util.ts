@@ -235,9 +235,12 @@ export function previousValueComparator<A>(
 }
 
 export function addUrlProtocolPrefix(urlString: string) {
-  if (!urlString.match(/(^http:\/\/)|(^https:\/\/)/u)) {
+  urlString = urlString.trim();
+
+  if (urlString.length > 0 && !urlString.match(/(^http:\/\/)|(^https:\/\/)/u)) {
     return `https://${urlString}`;
   }
+
   return urlString;
 }
 

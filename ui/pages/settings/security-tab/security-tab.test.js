@@ -1,16 +1,22 @@
-import {
-  fireEvent,
-  queryByRole,
-  screen,
-  waitFor,
-} from '@testing-library/react';
+import { fireEvent, queryByRole, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import configureMockStore from 'redux-mock-store';
 import thunk from 'redux-thunk';
+import { getEnvironmentType } from '../../../../app/scripts/lib/util';
+import { ENVIRONMENT_TYPE_POPUP } from '../../../../shared/constants/app';
 import mockState from '../../../../test/data/mock-state.json';
 import { renderWithProvider, t } from '../../../../test/lib/render-helpers';
 import SecurityTab from './security-tab.container';
+
+jest.mock('../../../../app/scripts/lib/util', () => {
+  const originalModule = jest.requireActual('../../../../app/scripts/lib/util');
+
+  return {
+    ...originalModule,
+    getEnvironmentType: jest.fn(),
+  };
+});
 
 describe('Security Tab', () => {
   delete mockState.metamask.featureFlags; // Unset featureFlags in order to test the default value
@@ -34,38 +40,6 @@ describe('Security Tab', () => {
 
     expect(checkbox).toHaveAttribute('value', initialState ? 'false' : 'true');
   }
-
-  // async function testToggleCheckbox(testId, initialState) {
-  //   const user = userEvent.setup();
-  //   renderWithProvider(<SecurityTab />, mockStore);
-
-  //   const container = screen.getByTestId(testId);
-  //   const checkbox = queryByRole(container, 'checkbox');
-
-  //   expect(checkbox).toHaveAttribute('value', initialState ? 'true' : 'false');
-
-  //   // await user.click(checkbox); // This fires the onToggle method of the ToggleButton, but it doesn't change the value of the checkbox
-  //   fireEvent.click(checkbox); // This fires the onToggle method of the ToggleButton, but it doesn't change the value of the checkbox
-
-  //   // const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-  //   // await setTimeout(100000);
-
-  //   // fireEvent.change(checkbox, {
-  //   //   target: { value: !initialState }, // This changes the value of the checkbox
-  //   // });
-
-  //   await waitFor(
-  //     () => {
-  //       expect(checkbox).toHaveAttribute(
-  //         'value',
-  //         initialState ? 'false' : 'true',
-  //       );
-  //     },
-  //     { timeout: 100000 },
-  //   );
-
-  //   // expect(checkbox).toHaveAttribute('value', initialState ? 'false' : 'true');
-  // }
 
   it('should match snapshot', () => {
     const { container } = renderWithProvider(<SecurityTab />, mockStore);
@@ -125,16 +99,32 @@ describe('Security Tab', () => {
 
     await user.click(ipfsField);
 
-    await user.keyboard(
-      '{Backspace}',
-      // '{Backspace}{Backspace}{Backspace}{Backspace}{Backspace}{Backspace}{Backspace}{Backspace}{Backspace}',
-    );
+    await userEvent.clear(ipfsField);
+
+    await userEvent.type(ipfsField, 'https://');
+
+    await userEvent.type(ipfsField, '//');
+
+    await userEvent.clear(ipfsField);
+
+    await userEvent.type(ipfsField, 'gateway.ipfs.io');
   });
 
   it('clicks "Add Custom Network"', async () => {
     const user = userEvent.setup();
     renderWithProvider(<SecurityTab />, mockStore);
 
+    // Test the default path where `getEnvironmentType() === undefined`
     await user.click(screen.getByText(t('addCustomNetwork')));
+
+    // Now force it down the path where `getEnvironmentType() === ENVIRONMENT_TYPE_POPUP`
+    jest
+      .mocked(getEnvironmentType)
+      .mockImplementationOnce(() => ENVIRONMENT_TYPE_POPUP);
+
+    global.platform = { openExtensionInBrowser: jest.fn() };
+
+    await user.click(screen.getByText(t('addCustomNetwork')));
+    expect(global.platform.openExtensionInBrowser).toHaveBeenCalled();
   });
 });
