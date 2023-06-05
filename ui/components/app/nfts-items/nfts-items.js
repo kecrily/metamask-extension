@@ -183,7 +183,7 @@ export default function NftsItems({
                   key={`nft-${i}`}
                   className="nfts-items__item-wrapper"
                 >
-                  {process.env.MULTICHAIN ? (
+                  {true ? (
                     <NftItem
                       src={nftImage}
                       alt={nftImageAlt}

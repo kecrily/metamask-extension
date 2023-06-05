@@ -183,7 +183,7 @@ export default function NftDetails({ nft }) {
       />
       <Box className="nft-details">
         <Box className="nft-details__top-section" gap={6}>
-          {process.env.MULTICHAIN ? (
+          {true ? (
             <Box className="nft-details__nft-item">
               <NftItem
                 src={image ? nftImageURL : ''}

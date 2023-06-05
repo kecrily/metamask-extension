@@ -7,6 +7,9 @@ import IdleTimer from 'react-idle-timer';
 ///: BEGIN:ONLY_INCLUDE_IN(desktop)
 import browserAPI from 'webextension-polyfill';
 ///: END:ONLY_INCLUDE_IN
+
+import { hideImportTokensPopover } from '../../store/actions';
+
 import SendTransactionScreen from '../send';
 import Swaps from '../swaps';
 import ConfirmTransaction from '../confirm-transaction';
@@ -111,6 +114,8 @@ import { SEND_STAGES } from '../../ducks/send';
 import DeprecatedTestNetworks from '../../components/ui/deprecated-test-networks/deprecated-test-networks';
 import NewNetworkInfo from '../../components/ui/new-network-info/new-network-info';
 import { ThemeType } from '../../../shared/constants/preferences';
+import Popover from '../../components/ui/popover/popover.component';
+import ImportToken from '../swaps/import-token/import-token';
 
 export default class Routes extends Component {
   static propTypes = {
@@ -151,6 +156,8 @@ export default class Routes extends Component {
     isNetworkMenuOpen: PropTypes.bool,
     toggleNetworkMenu: PropTypes.func,
     accountDetailsAddress: PropTypes.string,
+    isImportTokensPopoverOpen: PropTypes.bool.isRequired,
+    clearPendingTokens: PropTypes.func.isRequired,
   };
 
   static contextTypes = {
@@ -495,7 +502,9 @@ export default class Routes extends Component {
       isNetworkMenuOpen,
       toggleNetworkMenu,
       accountDetailsAddress,
+      isImportTokensPopoverOpen,
       location,
+      clearPendingTokens,
     } = this.props;
     const loadMessage =
       loadingMessage || isNetworkLoading
@@ -553,6 +562,17 @@ export default class Routes extends Component {
         ) : null}
         {accountDetailsAddress ? (
           <AccountDetails address={accountDetailsAddress} />
+        ) : null}
+        {isImportTokensPopoverOpen ? (
+          <Popover
+            onClose={() => {
+              clearPendingTokens();
+              hideImportTokensPopover();
+            }}
+            title="Import Tokens"
+          >
+            <ImportTokenPage />
+          </Popover>
         ) : null}
         <div className="main-container-wrapper">
           {isLoading ? <Loading loadingMessage={loadMessage} /> : null}
