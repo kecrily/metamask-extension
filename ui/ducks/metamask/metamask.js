@@ -263,9 +263,7 @@ export const getNfts = (state) => {
   } = state;
   const { chainId } = getProviderConfig(state);
 
-  const chainIdAsDecimal = hexToDecimal(chainId);
-
-  return allNfts?.[selectedAddress]?.[chainIdAsDecimal] ?? [];
+  return allNfts?.[selectedAddress]?.[chainId] ?? [];
 };
 
 export const getNftContracts = (state) => {
@@ -274,9 +272,7 @@ export const getNftContracts = (state) => {
   } = state;
   const { chainId } = getProviderConfig(state);
 
-  const chainIdAsDecimal = hexToDecimal(chainId);
-
-  return allNftContracts?.[selectedAddress]?.[chainIdAsDecimal] ?? [];
+  return allNftContracts?.[selectedAddress]?.[chainId] ?? [];
 };
 
 export function getBlockGasLimit(state) {

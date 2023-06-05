@@ -204,6 +204,7 @@ describe('DetectTokensController', function () {
       name: 'TokenListController',
     });
     tokenListController = new TokenListController({
+      // TODO: This should be 0x1
       chainId: '1',
       preventPollingOnNetworkRestart: false,
       onNetworkStateChange: sinon.spy(),
@@ -250,6 +251,7 @@ describe('DetectTokensController', function () {
         networkControllerMessenger.subscribe(
           'NetworkController:networkDidChange',
           () => {
+            // TODO: There is no need to do this
             const networkState = network.store.getState();
             const modifiedNetworkState = {
               ...networkState,
@@ -311,6 +313,7 @@ describe('DetectTokensController', function () {
       name: 'TokenListController',
     });
     tokenListController = new TokenListController({
+      // TODO: This should be a hex string
       chainId: '11155111',
       onNetworkStateChange: sinon.spy(),
       onPreferencesStateChange: sinon.spy(),

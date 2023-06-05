@@ -153,17 +153,16 @@ const render = ({
   useNftDetection,
   onAddNFT = jest.fn(),
 }) => {
-  const chainIdAsDecimal = hexToDecimal(chainId);
   const store = configureStore({
     metamask: {
       allNfts: {
         [ACCOUNT_1]: {
-          [chainIdAsDecimal]: nfts,
+          [chainId]: nfts,
         },
       },
       allNftContracts: {
         [ACCOUNT_1]: {
-          [chainIdAsDecimal]: nftContracts,
+          [chainId]: nftContracts,
         },
       },
       providerConfig: { chainId },

@@ -1,3 +1,4 @@
+import { Hex } from '@metamask/utils';
 import { CHAIN_IDS, MAX_SAFE_CHAIN_ID } from '../constants/network';
 
 /**
@@ -33,7 +34,7 @@ export function isPrefixedFormattedHexString(value: unknown) {
  * @param chainId - ChainID of network
  * @returns Whether the current network supports token detection
  */
-export function isTokenDetectionEnabledForNetwork(chainId: string | undefined) {
+export function isTokenDetectionEnabledForNetwork(chainId: string) {
   switch (chainId) {
     case CHAIN_IDS.MAINNET:
     case CHAIN_IDS.BSC:

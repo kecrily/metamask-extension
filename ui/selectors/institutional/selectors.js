@@ -59,6 +59,7 @@ export function getIsCustodianSupportedChain(state) {
 
   return supportedChains?.supportedChains
     ? supportedChains.supportedChains.includes(
+        // TODO: This doesn't seem right, should use BN to convert from hex
         Number(providerConfig.chainId).toString(),
       )
     : true;

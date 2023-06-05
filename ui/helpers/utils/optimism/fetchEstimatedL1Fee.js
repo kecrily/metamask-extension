@@ -24,6 +24,7 @@ export default async function fetchEstimatedL1Fee(
   txMeta,
   ethersProvider,
 ) {
+  // TODO: Investigate whether this is right..... shouldn't we use new BN(stripHexPrefix(chainId), 16) instead?
   const networkId = Number(chainId);
   const provider = global.ethereumProvider
     ? new Web3Provider(global.ethereumProvider, networkId)

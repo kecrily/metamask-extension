@@ -10,9 +10,11 @@ const customData = {
     ...testData.metamask,
     providerConfig: {
       type: 'test',
+      // TODO: Does this need to be a hex string rather than a decimal string?
       chainId: '3',
     },
     cachedBalances: {
+      // TODO: Does this need to be a hex string rather than a decimal string?
       3: {
         '0x5Ab19e7091dD208F352F8E727B6DCC6F8aBB6275': '0x0',
       },
