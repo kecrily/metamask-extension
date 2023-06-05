@@ -18,8 +18,8 @@ import {
 import { MetaMetricsNetworkEventSource } from '../../../../shared/constants/metametrics';
 import {
   NetworkController,
+  NetworkControllerAction,
   NetworkControllerEvent,
-  NetworkControllerEventType,
   NetworkControllerOptions,
   NetworkControllerState,
   ProviderConfiguration,
@@ -54,7 +54,6 @@ type Block = {
 };
 
 const createNetworkClientMock = jest.mocked(createNetworkClient);
-// const providerFromEngineMock = jest.mocked(providerFromEngine);
 const uuidV4Mock = jest.mocked(v4);
 
 /**
@@ -81,32 +80,25 @@ const POST_1559_BLOCK: Block = {
 const BLOCK: Block = POST_1559_BLOCK;
 
 /**
- * A dummy value for the `projectId` option that `createInfuraClient` needs.
- * (Infura should not be hit during tests, but just in case, this should not
- * refer to a real project ID.)
- */
-const DEFAULT_INFURA_PROJECT_ID = 'fake-infura-project-id';
-
-/**
  * The networks that NetworkController recognizes as built-in Infura networks,
  * along with information we expect to be true for those networks.
  */
 const INFURA_NETWORKS = [
   {
     networkType: NETWORK_TYPES.MAINNET,
-    chainId: '0x1' as const,
+    chainId: toHex(1),
     ticker: 'ETH',
     blockExplorerUrl: 'https://etherscan.io',
   },
   {
     networkType: NETWORK_TYPES.GOERLI,
-    chainId: '0x5' as const,
+    chainId: toHex(5),
     ticker: 'GoerliETH',
     blockExplorerUrl: 'https://goerli.etherscan.io',
   },
   {
     networkType: NETWORK_TYPES.SEPOLIA,
-    chainId: '0xaa36a7' as const,
+    chainId: toHex(11155111),
     ticker: 'SepoliaETH',
     blockExplorerUrl: 'https://sepolia.etherscan.io',
   },
@@ -153,22 +145,51 @@ describe('NetworkController', () => {
     nock.enableNetConnect('localhost');
     nock.cleanAll();
     resetAllWhenMocks();
+    jest.resetAllMocks();
   });
 
   describe('constructor', () => {
     const invalidInfuraProjectIds = [undefined, null, {}, 1];
     invalidInfuraProjectIds.forEach((invalidProjectId) => {
-      it(`throws if an invalid Infura ID of "${inspect(
+      it(`throws given an invalid Infura ID of "${inspect(
         invalidProjectId,
-      )}" is provided`, () => {
+      )}"`, () => {
+        const messenger = buildMessenger();
+        const restrictedMessenger = buildNetworkControllerMessenger(messenger);
         expect(
-          // @ts-expect-error We are intentionally passing bad input.
-          () => new NetworkController({ infuraProjectId: invalidProjectId }),
+          () =>
+            new NetworkController({
+              messenger: restrictedMessenger,
+              // @ts-expect-error We are intentionally passing bad input.
+              infuraProjectId: invalidProjectId,
+            }),
         ).toThrow('Invalid Infura project ID');
       });
     });
 
-    it('accepts initial state', async () => {
+    it('initializes the state with some defaults', async () => {
+      await withController(({ controller }) => {
+        expect(controller.store.getState()).toMatchInlineSnapshot(`
+          {
+            "networkConfigurations": {},
+            "networkDetails": {
+              "EIPS": {},
+            },
+            "networkId": null,
+            "networkStatus": "unknown",
+            "providerConfig": {
+              "chainId": "0x539",
+              "nickname": "Localhost 8545",
+              "rpcUrl": "http://localhost:8545",
+              "ticker": "ETH",
+              "type": "rpc",
+            },
+          }
+        `);
+      });
+    });
+
+    it('merges the given state into the default state', async () => {
       await withController(
         {
           state: {
@@ -180,7 +201,7 @@ describe('NetworkController', () => {
             },
             networkDetails: {
               EIPS: {
-                1559: false,
+                1559: true,
               },
             },
           },
@@ -191,7 +212,7 @@ describe('NetworkController', () => {
               "networkConfigurations": {},
               "networkDetails": {
                 "EIPS": {
-                  "1559": false,
+                  "1559": true,
                 },
               },
               "networkId": null,
@@ -206,30 +227,6 @@ describe('NetworkController', () => {
           `);
         },
       );
-    });
-
-    it('sets default state without initial state', async () => {
-      await withController(({ controller }) => {
-        expect(controller.store.getState()).toMatchInlineSnapshot(`
-          {
-            "networkConfigurations": {},
-            "networkDetails": {
-              "EIPS": {
-                "1559": undefined,
-              },
-            },
-            "networkId": null,
-            "networkStatus": "unknown",
-            "providerConfig": {
-              "chainId": "0x539",
-              "nickname": "Localhost 8545",
-              "rpcUrl": "http://localhost:8545",
-              "ticker": "ETH",
-              "type": "rpc",
-            },
-          }
-        `);
-      });
     });
   });
 
@@ -252,7 +249,7 @@ describe('NetworkController', () => {
         blockTracker.addListener('latest', () => {
           // do nothing
         });
-        expect(blockTracker.isRunning()).toBeTruthy();
+        expect(blockTracker.isRunning()).toBe(true);
 
         await controller.destroy();
 
@@ -262,37 +259,34 @@ describe('NetworkController', () => {
   });
 
   describe('initializeProvider', () => {
-    it('throws if the provider configuration is invalid', async () => {
-      const invalidProviderConfig = {};
-      await withController(
-        /* @ts-expect-error We're intentionally passing bad input. */
-        {
-          state: {
-            providerConfig: invalidProviderConfig,
+    describe('when the type in the provider config is invalid', () => {
+      it('throws', async () => {
+        const invalidProviderConfig = {};
+        await withController(
+          /* @ts-expect-error We're intentionally passing bad input. */
+          {
+            state: {
+              providerConfig: invalidProviderConfig,
+            },
           },
-        },
-        async ({ controller }) => {
-          await expect(async () => {
-            await controller.initializeProvider();
-          }).rejects.toThrow(
-            'NetworkController - #configureProvider - unknown type "undefined"',
-          );
-        },
-      );
+          async ({ controller }) => {
+            await expect(async () => {
+              await controller.initializeProvider();
+            }).rejects.toThrow("Unrecognized network type: 'undefined'");
+          },
+        );
+      });
     });
 
     for (const { networkType } of INFURA_NETWORKS) {
-      describe(`when the type in the provider configuration is "${networkType}"`, () => {
-        it(`initializes a provider pointed to the "${networkType}" Infura network`, async () => {
+      describe(`when the type in the provider config is "${networkType}"`, () => {
+        it(`creates a network client for the ${networkType} Infura network, capturing the resulting provider`, async () => {
           await withController(
             {
               state: {
-                providerConfig: {
+                providerConfig: buildProviderConfig({
                   type: networkType,
-                  // NOTE: This doesn't need to match the logical chain ID
-                  // of the network selected, it just needs to exist
-                  chainId: '0x9999999',
-                },
+                }),
               },
               infuraProjectId: 'some-infura-project-id',
             },
@@ -300,7 +294,8 @@ describe('NetworkController', () => {
               const fakeProvider = buildFakeProvider([
                 {
                   request: {
-                    method: 'test',
+                    method: 'test_method',
+                    params: [],
                   },
                   response: {
                     result: 'test response',
@@ -308,27 +303,27 @@ describe('NetworkController', () => {
                 },
               ]);
               const fakeNetworkClient = buildFakeClient(fakeProvider);
-              mockCreateNetworkClient()
-                .calledWith({
-                  network: networkType,
-                  infuraProjectId: 'some-infura-project-id',
-                  type: NetworkClientType.Infura,
-                })
-                .mockReturnValue(fakeNetworkClient);
+              createNetworkClientMock.mockReturnValue(fakeNetworkClient);
 
               await controller.initializeProvider();
 
+              expect(createNetworkClientMock).toHaveBeenCalledWith({
+                network: networkType,
+                infuraProjectId: 'some-infura-project-id',
+                type: NetworkClientType.Infura,
+              });
               const { provider } = controller.getProviderAndBlockTracker();
-              assert(provider, 'Provider is somehow unset');
+              assert(provider, 'Provider is not set');
               const promisifiedSendAsync = promisify(provider.sendAsync).bind(
                 provider,
               );
-              const response = await promisifiedSendAsync({
-                id: '1',
+              const { result } = await promisifiedSendAsync({
+                id: 1,
                 jsonrpc: '2.0',
-                method: 'test',
+                method: 'test_method',
+                params: [],
               });
-              expect(response.result).toBe('test response');
+              expect(result).toBe('test response');
             },
           );
         });
@@ -346,76 +341,181 @@ describe('NetworkController', () => {
     }
 
     describe(`when the type in the provider configuration is "rpc"`, () => {
-      it('initializes a provider pointed to the given RPC URL whose chain ID matches the configured chain ID', async () => {
-        await withController(
-          {
-            state: {
-              providerConfig: {
-                type: 'rpc',
-                chainId: '0x1337',
-                rpcUrl: 'https://mock-rpc-url',
-                ticker: 'TEST',
-              },
-              networkConfigurations: {
-                testNetworkConfigurationId: {
-                  rpcUrl: 'https://mock-rpc-url',
-                  chainId: '0x1337',
-                  ticker: 'TEST',
-                  id: 'testNetworkConfigurationId',
+      describe('if chainId and rpcUrl are present in the provider config', () => {
+        it('creates a network client for a custom RPC endpoint using the provider config, capturing the resulting provider', async () => {
+          await withController(
+            {
+              state: {
+                providerConfig: {
+                  type: NETWORK_TYPES.RPC,
+                  chainId: toHex(1337),
+                  rpcUrl: 'http://example.com',
                 },
               },
             },
-          },
-          async ({ controller }) => {
-            const fakeProvider = buildFakeProvider([
-              {
-                request: {
-                  method: 'test',
+            async ({ controller }) => {
+              const fakeProvider = buildFakeProvider([
+                {
+                  request: {
+                    method: 'test_method',
+                    params: [],
+                  },
+                  response: {
+                    result: 'test response',
+                  },
                 },
-                response: {
-                  result: 'test response',
-                },
-              },
-            ]);
-            const fakeNetworkClient = buildFakeClient(fakeProvider);
-            mockCreateNetworkClient()
-              .calledWith({
-                chainId: '0x1337',
-                rpcUrl: 'https://mock-rpc-url',
+              ]);
+              const fakeNetworkClient = buildFakeClient(fakeProvider);
+              createNetworkClientMock.mockReturnValue(fakeNetworkClient);
+
+              await controller.initializeProvider();
+
+              expect(createNetworkClientMock).toHaveBeenCalledWith({
+                chainId: toHex(1337),
+                rpcUrl: 'http://example.com',
                 type: NetworkClientType.Custom,
-              })
-              .mockReturnValue(fakeNetworkClient);
-            mockCreateNetworkClient().mockReturnValue(fakeNetworkClient);
+              });
+              const { provider } = controller.getProviderAndBlockTracker();
+              assert(provider, 'Provider is not set');
+              const promisifiedSendAsync = promisify(provider.sendAsync).bind(
+                provider,
+              );
+              const { result } = await promisifiedSendAsync({
+                id: 1,
+                jsonrpc: '2.0',
+                method: 'test_method',
+                params: [],
+              });
+              expect(result).toBe('test response');
+            },
+          );
+        });
 
-            await controller.initializeProvider();
-
-            const { provider } = controller.getProviderAndBlockTracker();
-            assert(provider, 'Provider is somehow unset');
-            const promisifiedSendAsync = promisify(provider.sendAsync).bind(
-              provider,
-            );
-            const response = await promisifiedSendAsync({
-              id: '1',
-              jsonrpc: '2.0',
-              method: 'test',
-            });
-            expect(response.result).toBe('test response');
-          },
-        );
-      });
-
-      lookupNetworkTests({
-        expectedProviderConfig: buildProviderConfig({
-          type: NETWORK_TYPES.RPC,
-        }),
-        initialState: {
-          providerConfig: buildProviderConfig({
+        lookupNetworkTests({
+          expectedProviderConfig: buildProviderConfig({
             type: NETWORK_TYPES.RPC,
           }),
-        },
-        operation: async (controller: NetworkController) => {
-          await controller.initializeProvider();
-        },
+          initialState: {
+            providerConfig: buildProviderConfig({
+              type: NETWORK_TYPES.RPC,
+            }),
+          },
+          operation: async (controller: NetworkController) => {
+            await controller.initializeProvider();
+          },
+        });
+      });
+
+      describe('if chainId is missing from the provider config', () => {
+        it('throws', async () => {
+          await withController(
+            {
+              state: {
+                providerConfig: buildProviderConfig({
+                  type: NETWORK_TYPES.RPC,
+                  chainId: undefined,
+                }),
+              },
+            },
+            async ({ controller }) => {
+              const fakeProvider = buildFakeProvider();
+              const fakeNetworkClient = buildFakeClient(fakeProvider);
+              createNetworkClientMock.mockReturnValue(fakeNetworkClient);
+
+              await expect(() =>
+                controller.initializeProvider(),
+              ).rejects.toThrow(
+                'chainId must be provided for custom RPC endpoints',
+              );
+            },
+          );
+        });
+
+        it('does not create a network client or capture a provider', async () => {
+          await withController(
+            {
+              state: {
+                providerConfig: buildProviderConfig({
+                  type: NETWORK_TYPES.RPC,
+                  chainId: undefined,
+                }),
+              },
+            },
+            async ({ controller }) => {
+              const fakeProvider = buildFakeProvider();
+              const fakeNetworkClient = buildFakeClient(fakeProvider);
+              createNetworkClientMock.mockReturnValue(fakeNetworkClient);
+
+              try {
+                await controller.initializeProvider();
+              } catch {
+                // ignore the error
+              }
+
+              expect(createNetworkClientMock).not.toHaveBeenCalled();
+              const { provider, blockTracker } =
+                controller.getProviderAndBlockTracker();
+              expect(provider).toBeNull();
+              expect(blockTracker).toBeNull();
+            },
+          );
+        });
+      });
+
+      describe('if rpcUrl is missing from the provider config', () => {
+        it('throws', async () => {
+          await withController(
+            {
+              state: {
+                providerConfig: buildProviderConfig({
+                  type: NETWORK_TYPES.RPC,
+                  rpcUrl: undefined,
+                }),
+              },
+            },
+            async ({ controller }) => {
+              const fakeProvider = buildFakeProvider();
+              const fakeNetworkClient = buildFakeClient(fakeProvider);
+              createNetworkClientMock.mockReturnValue(fakeNetworkClient);
+
+              await expect(() =>
+                controller.initializeProvider(),
+              ).rejects.toThrow(
+                'rpcUrl must be provided for custom RPC endpoints',
+              );
+            },
+          );
+        });
+
+        it('does not create a network client or capture a provider', async () => {
+          await withController(
+            {
+              state: {
+                providerConfig: buildProviderConfig({
+                  type: NETWORK_TYPES.RPC,
+                  rpcUrl: undefined,
+                }),
+              },
+            },
+            async ({ controller }) => {
+              const fakeProvider = buildFakeProvider();
+              const fakeNetworkClient = buildFakeClient(fakeProvider);
+              createNetworkClientMock.mockReturnValue(fakeNetworkClient);
+
+              try {
+                await controller.initializeProvider();
+              } catch {
+                // ignore the error
+              }
+
+              expect(createNetworkClientMock).not.toHaveBeenCalled();
+              const { provider, blockTracker } =
+                controller.getProviderAndBlockTracker();
+              expect(provider).toBeNull();
+              expect(blockTracker).toBeNull();
+            },
+          );
+        });
       });
     });
   });
@@ -876,7 +976,7 @@ describe('NetworkController', () => {
 
           const promiseForNoInfuraIsUnblockedEvents = waitForPublishedEvents({
             messenger,
-            eventType: NetworkControllerEventType.InfuraIsUnblocked,
+            eventType: 'NetworkController:infuraIsUnblocked',
             count: 0,
             operation: async () => {
               await controller.lookupNetwork();
@@ -895,7 +995,7 @@ describe('NetworkController', () => {
 
           const promiseForNoInfuraIsBlockedEvents = waitForPublishedEvents({
             messenger,
-            eventType: NetworkControllerEventType.InfuraIsBlocked,
+            eventType: 'NetworkController:infuraIsBlocked',
             count: 0,
             operation: async () => {
               await controller.lookupNetwork();
@@ -904,102 +1004,6 @@ describe('NetworkController', () => {
 
           expect(await promiseForNoInfuraIsBlockedEvents).toBeTruthy();
         });
-      });
-    });
-
-    describe('if the provider has initialized, but the current network has no chainId', () => {
-      it('does not update state in any way', async () => {
-        await withController(
-          /* @ts-expect-error We are intentionally not including a chainId in the provider config. */
-          {
-            state: {
-              providerConfig: {
-                type: 'rpc',
-                rpcUrl: 'http://example-custom-rpc.metamask.io',
-              },
-              networkDetails: {
-                EIPS: {
-                  1559: true,
-                },
-              },
-            },
-          },
-          async ({ controller }) => {
-            const fakeProvider = buildFakeProvider();
-            const fakeNetworkClient = buildFakeClient(fakeProvider);
-            mockCreateNetworkClient().mockReturnValue(fakeNetworkClient);
-            await controller.initializeProvider();
-            const stateAfterInitialization = controller.store.getState();
-
-            await controller.lookupNetwork();
-
-            expect(controller.store.getState()).toStrictEqual(
-              stateAfterInitialization,
-            );
-          },
-        );
-      });
-
-      it('does not emit infuraIsUnblocked', async () => {
-        await withController(
-          /* @ts-expect-error We are intentionally not including a chainId in the provider config. */
-          {
-            state: {
-              providerConfig: {
-                type: 'rpc',
-                rpcUrl: 'http://example-custom-rpc.metamask.io',
-              },
-            },
-          },
-          async ({ controller, messenger }) => {
-            const fakeProvider = buildFakeProvider();
-            const fakeNetworkClient = buildFakeClient(fakeProvider);
-            mockCreateNetworkClient().mockReturnValue(fakeNetworkClient);
-            await controller.initializeProvider();
-
-            const promiseForNoInfuraIsUnblockedEvents = waitForPublishedEvents({
-              messenger,
-              eventType: NetworkControllerEventType.InfuraIsUnblocked,
-              count: 0,
-              operation: async () => {
-                await controller.lookupNetwork();
-              },
-            });
-
-            expect(await promiseForNoInfuraIsUnblockedEvents).toBeTruthy();
-          },
-        );
-      });
-
-      it('does not emit infuraIsBlocked', async () => {
-        await withController(
-          /* @ts-expect-error We are intentionally not including a chainId in the provider config. */
-          {
-            state: {
-              providerConfig: {
-                type: 'rpc',
-                rpcUrl: 'http://example-custom-rpc.metamask.io',
-              },
-            },
-          },
-          async ({ controller, messenger }) => {
-            const fakeProvider = buildFakeProvider();
-            const fakeNetworkClient = buildFakeClient(fakeProvider);
-            mockCreateNetworkClient().mockReturnValue(fakeNetworkClient);
-            await controller.initializeProvider();
-
-            const promiseForNoInfuraIsBlockedEvents = waitForPublishedEvents({
-              messenger,
-              eventType: NetworkControllerEventType.InfuraIsBlocked,
-              count: 0,
-              operation: async () => {
-                await controller.lookupNetwork();
-              },
-            });
-
-            expect(await promiseForNoInfuraIsBlockedEvents).toBeTruthy();
-          },
-        );
       });
     });
 
@@ -1373,12 +1377,12 @@ describe('NetworkController', () => {
                 const promiseForNoInfuraIsUnblockedEvents =
                   waitForPublishedEvents({
                     messenger,
-                    eventType: NetworkControllerEventType.InfuraIsUnblocked,
+                    eventType: 'NetworkController:infuraIsUnblocked',
                     count: 0,
                   });
                 const promiseForInfuraIsBlocked = waitForPublishedEvents({
                   messenger,
-                  eventType: NetworkControllerEventType.InfuraIsBlocked,
+                  eventType: 'NetworkController:infuraIsBlocked',
                 });
 
                 await controller.lookupNetwork();
@@ -1793,12 +1797,12 @@ describe('NetworkController', () => {
               const promiseForNoInfuraIsUnblockedEvents =
                 waitForPublishedEvents({
                   messenger,
-                  eventType: NetworkControllerEventType.InfuraIsUnblocked,
+                  eventType: 'NetworkController:infuraIsUnblocked',
                   count: 0,
                 });
               const promiseForInfuraIsBlocked = waitForPublishedEvents({
                 messenger,
-                eventType: NetworkControllerEventType.InfuraIsBlocked,
+                eventType: 'NetworkController:infuraIsBlocked',
               });
 
               await controller.lookupNetwork();
@@ -2203,12 +2207,12 @@ describe('NetworkController', () => {
               const promiseForNoInfuraIsUnblockedEvents =
                 waitForPublishedEvents({
                   messenger,
-                  eventType: NetworkControllerEventType.InfuraIsUnblocked,
+                  eventType: 'NetworkController:infuraIsUnblocked',
                   count: 0,
                 });
               const promiseForInfuraIsBlocked = waitForPublishedEvents({
                 messenger,
-                eventType: NetworkControllerEventType.InfuraIsBlocked,
+                eventType: 'NetworkController:infuraIsBlocked',
               });
 
               await controller.lookupNetwork();
@@ -2451,6 +2455,31 @@ describe('NetworkController', () => {
     });
   });
 
+  describe('NetworkController:getProviderConfig action', () => {
+    it('returns the provider config in state', async () => {
+      await withController(
+        {
+          state: {
+            providerConfig: buildProviderConfig({
+              type: NETWORK_TYPES.MAINNET,
+            }),
+          },
+        },
+        async ({ messenger }) => {
+          const providerConfig = await messenger.call(
+            'NetworkController:getProviderConfig',
+          );
+
+          expect(providerConfig).toStrictEqual(
+            buildProviderConfig({
+              type: NETWORK_TYPES.MAINNET,
+            }),
+          );
+        },
+      );
+    });
+  });
+
   describe('rollbackToPreviousProvider', () => {
     for (const { networkType } of INFURA_NETWORKS) {
       describe(`if the previous provider configuration had a type of "${networkType}"`, () => {
@@ -2587,7 +2616,7 @@ describe('NetworkController', () => {
                 operation: async () => {
                   const networkWillChange = await waitForPublishedEvents({
                     messenger,
-                    eventType: NetworkControllerEventType.NetworkWillChange,
+                    eventType: 'NetworkController:networkWillChange',
                     operation: async () => {
                       await controller.rollbackToPreviousProvider();
                     },
@@ -2768,9 +2797,7 @@ describe('NetworkController', () => {
                       expect(
                         controller.store.getState().networkDetails,
                       ).toStrictEqual({
-                        EIPS: {
-                          1559: undefined,
-                        },
+                        EIPS: {},
                       });
                     },
                   });
@@ -2962,7 +2989,7 @@ describe('NetworkController', () => {
                 operation: async () => {
                   const networkDidChange = await waitForPublishedEvents({
                     messenger,
-                    eventType: NetworkControllerEventType.NetworkDidChange,
+                    eventType: 'NetworkController:networkDidChange',
                     operation: async () => {
                       await controller.rollbackToPreviousProvider();
                     },
@@ -3029,12 +3056,12 @@ describe('NetworkController', () => {
               const promiseForNoInfuraIsUnblockedEvents =
                 waitForPublishedEvents({
                   messenger,
-                  eventType: NetworkControllerEventType.InfuraIsUnblocked,
+                  eventType: 'NetworkController:infuraIsUnblocked',
                   count: 0,
                 });
               const promiseForInfuraIsBlocked = waitForPublishedEvents({
                 messenger,
-                eventType: NetworkControllerEventType.InfuraIsBlocked,
+                eventType: 'NetworkController:infuraIsBlocked',
               });
 
               await waitForLookupNetworkToComplete({
@@ -3326,7 +3353,7 @@ describe('NetworkController', () => {
               operation: async () => {
                 const networkWillChange = await waitForPublishedEvents({
                   messenger,
-                  eventType: NetworkControllerEventType.NetworkWillChange,
+                  eventType: 'NetworkController:networkWillChange',
                   operation: async () => {
                     await controller.rollbackToPreviousProvider();
                   },
@@ -3483,9 +3510,7 @@ describe('NetworkController', () => {
                     expect(
                       controller.store.getState().networkDetails,
                     ).toStrictEqual({
-                      EIPS: {
-                        1559: undefined,
-                      },
+                      EIPS: {},
                     });
                   },
                 });
@@ -3649,7 +3674,7 @@ describe('NetworkController', () => {
               operation: async () => {
                 const networkDidChange = await waitForPublishedEvents({
                   messenger,
-                  eventType: NetworkControllerEventType.NetworkDidChange,
+                  eventType: 'NetworkController:networkDidChange',
                   operation: async () => {
                     await controller.rollbackToPreviousProvider();
                   },
@@ -3700,7 +3725,7 @@ describe('NetworkController', () => {
               operation: async () => {
                 const infuraIsUnblocked = await waitForPublishedEvents({
                   messenger,
-                  eventType: NetworkControllerEventType.InfuraIsUnblocked,
+                  eventType: 'NetworkController:infuraIsUnblocked',
                   operation: async () => {
                     await controller.rollbackToPreviousProvider();
                   },
@@ -4542,7 +4567,7 @@ function refreshNetworkTests({
 
         const networkWillChange = await waitForPublishedEvents({
           messenger,
-          eventType: NetworkControllerEventType.NetworkWillChange,
+          eventType: 'NetworkController:networkWillChange',
           operation: () => {
             // Intentionally not awaited because we're capturing an event
             // emitted partway through the operation
@@ -4567,7 +4592,7 @@ function refreshNetworkTests({
 
         const networkDidChange = await waitForPublishedEvents({
           messenger,
-          eventType: NetworkControllerEventType.NetworkDidChange,
+          eventType: 'NetworkController:networkDidChange',
           operation: () => {
             // Intentionally not awaited because we're capturing an event
             // emitted partway through the operation
@@ -4752,9 +4777,7 @@ function refreshNetworkTests({
         });
 
         expect(controller.store.getState().networkDetails).toStrictEqual({
-          EIPS: {
-            1559: undefined,
-          },
+          EIPS: {},
         });
       },
     );
@@ -5088,7 +5111,7 @@ function lookupNetworkTests({
 
           const payloads = await waitForPublishedEvents({
             messenger,
-            eventType: NetworkControllerEventType.InfuraIsUnblocked,
+            eventType: 'NetworkController:infuraIsUnblocked',
             operation: async () => {
               await operation(controller);
             },
@@ -5111,7 +5134,7 @@ function lookupNetworkTests({
 
           const payloads = await waitForPublishedEvents({
             messenger,
-            eventType: NetworkControllerEventType.InfuraIsBlocked,
+            eventType: 'NetworkController:infuraIsBlocked',
             count: 0,
             operation: async () => {
               await operation(controller);
@@ -5167,7 +5190,7 @@ function lookupNetworkTests({
 
             const payloads = await waitForPublishedEvents({
               messenger,
-              eventType: NetworkControllerEventType.InfuraIsUnblocked,
+              eventType: 'NetworkController:infuraIsUnblocked',
               operation: async () => {
                 await operation(controller);
               },
@@ -5196,7 +5219,7 @@ function lookupNetworkTests({
 
             const payloads = await waitForPublishedEvents({
               messenger,
-              eventType: NetworkControllerEventType.InfuraIsUnblocked,
+              eventType: 'NetworkController:infuraIsUnblocked',
               count: 0,
               operation: async () => {
                 await operation(controller);
@@ -5227,7 +5250,7 @@ function lookupNetworkTests({
 
           const payloads = await waitForPublishedEvents({
             messenger,
-            eventType: NetworkControllerEventType.InfuraIsBlocked,
+            eventType: 'NetworkController:infuraIsBlocked',
             count: 0,
             operation: async () => {
               await operation(controller);
@@ -5283,7 +5306,7 @@ function lookupNetworkTests({
 
             const payloads = await waitForPublishedEvents({
               messenger,
-              eventType: NetworkControllerEventType.InfuraIsUnblocked,
+              eventType: 'NetworkController:infuraIsUnblocked',
               operation: async () => {
                 await operation(controller);
               },
@@ -5312,7 +5335,7 @@ function lookupNetworkTests({
 
             const payloads = await waitForPublishedEvents({
               messenger,
-              eventType: NetworkControllerEventType.InfuraIsBlocked,
+              eventType: 'NetworkController:infuraIsBlocked',
               count: 0,
               operation: async () => {
                 await operation(controller);
@@ -5365,7 +5388,7 @@ function lookupNetworkTests({
 
             const payloads = await waitForPublishedEvents({
               messenger,
-              eventType: NetworkControllerEventType.InfuraIsUnblocked,
+              eventType: 'NetworkController:infuraIsUnblocked',
               count: 0,
               operation: async () => {
                 await operation(controller);
@@ -5395,7 +5418,7 @@ function lookupNetworkTests({
 
             const payloads = await waitForPublishedEvents({
               messenger,
-              eventType: NetworkControllerEventType.InfuraIsBlocked,
+              eventType: 'NetworkController:infuraIsBlocked',
               operation: async () => {
                 await operation(controller);
               },
@@ -5451,7 +5474,7 @@ function lookupNetworkTests({
 
             const payloads = await waitForPublishedEvents({
               messenger,
-              eventType: NetworkControllerEventType.InfuraIsUnblocked,
+              eventType: 'NetworkController:infuraIsUnblocked',
               operation: async () => {
                 await operation(controller);
               },
@@ -5480,7 +5503,7 @@ function lookupNetworkTests({
 
             const payloads = await waitForPublishedEvents({
               messenger,
-              eventType: NetworkControllerEventType.InfuraIsUnblocked,
+              eventType: 'NetworkController:infuraIsUnblocked',
               count: 0,
               operation: async () => {
                 await operation(controller);
@@ -5511,7 +5534,7 @@ function lookupNetworkTests({
 
           const payloads = await waitForPublishedEvents({
             messenger,
-            eventType: NetworkControllerEventType.InfuraIsBlocked,
+            eventType: 'NetworkController:infuraIsBlocked',
             count: 0,
             operation: async () => {
               await operation(controller);
@@ -5567,7 +5590,7 @@ function lookupNetworkTests({
 
             const payloads = await waitForPublishedEvents({
               messenger,
-              eventType: NetworkControllerEventType.InfuraIsUnblocked,
+              eventType: 'NetworkController:infuraIsUnblocked',
               operation: async () => {
                 await operation(controller);
               },
@@ -5596,7 +5619,7 @@ function lookupNetworkTests({
 
             const payloads = await waitForPublishedEvents({
               messenger,
-              eventType: NetworkControllerEventType.InfuraIsUnblocked,
+              eventType: 'NetworkController:infuraIsUnblocked',
               count: 0,
               operation: async () => {
                 await operation(controller);
@@ -5627,7 +5650,7 @@ function lookupNetworkTests({
 
           const payloads = await waitForPublishedEvents({
             messenger,
-            eventType: NetworkControllerEventType.InfuraIsBlocked,
+            eventType: 'NetworkController:infuraIsBlocked',
             count: 0,
             operation: async () => {
               await operation(controller);
@@ -5689,7 +5712,7 @@ function lookupNetworkTests({
 
             const payloads = await waitForPublishedEvents({
               messenger,
-              eventType: NetworkControllerEventType.InfuraIsUnblocked,
+              eventType: 'NetworkController:infuraIsUnblocked',
               operation: async () => {
                 await operation(controller);
               },
@@ -5721,7 +5744,7 @@ function lookupNetworkTests({
 
             const payloads = await waitForPublishedEvents({
               messenger,
-              eventType: NetworkControllerEventType.InfuraIsUnblocked,
+              eventType: 'NetworkController:infuraIsUnblocked',
               count: 0,
               operation: async () => {
                 await operation(controller);
@@ -5755,7 +5778,7 @@ function lookupNetworkTests({
 
           const payloads = await waitForPublishedEvents({
             messenger,
-            eventType: NetworkControllerEventType.InfuraIsBlocked,
+            eventType: 'NetworkController:infuraIsBlocked',
             count: 0,
             operation: async () => {
               await operation(controller);
@@ -5817,7 +5840,7 @@ function lookupNetworkTests({
 
             const payloads = await waitForPublishedEvents({
               messenger,
-              eventType: NetworkControllerEventType.InfuraIsUnblocked,
+              eventType: 'NetworkController:infuraIsUnblocked',
               operation: async () => {
                 await operation(controller);
               },
@@ -5849,7 +5872,7 @@ function lookupNetworkTests({
 
             const payloads = await waitForPublishedEvents({
               messenger,
-              eventType: NetworkControllerEventType.InfuraIsBlocked,
+              eventType: 'NetworkController:infuraIsBlocked',
               count: 0,
               operation: async () => {
                 await operation(controller);
@@ -5908,7 +5931,7 @@ function lookupNetworkTests({
 
             const payloads = await waitForPublishedEvents({
               messenger,
-              eventType: NetworkControllerEventType.InfuraIsUnblocked,
+              eventType: 'NetworkController:infuraIsUnblocked',
               count: 0,
               operation: async () => {
                 await operation(controller);
@@ -5941,7 +5964,7 @@ function lookupNetworkTests({
 
             const payloads = await waitForPublishedEvents({
               messenger,
-              eventType: NetworkControllerEventType.InfuraIsBlocked,
+              eventType: 'NetworkController:infuraIsBlocked',
               operation: async () => {
                 await operation(controller);
               },
@@ -6002,7 +6025,7 @@ function lookupNetworkTests({
 
             const payloads = await waitForPublishedEvents({
               messenger,
-              eventType: NetworkControllerEventType.InfuraIsUnblocked,
+              eventType: 'NetworkController:infuraIsUnblocked',
               operation: async () => {
                 await operation(controller);
               },
@@ -6034,7 +6057,7 @@ function lookupNetworkTests({
 
             const payloads = await waitForPublishedEvents({
               messenger,
-              eventType: NetworkControllerEventType.InfuraIsUnblocked,
+              eventType: 'NetworkController:infuraIsUnblocked',
               count: 0,
               operation: async () => {
                 await operation(controller);
@@ -6068,7 +6091,7 @@ function lookupNetworkTests({
 
           const payloads = await waitForPublishedEvents({
             messenger,
-            eventType: NetworkControllerEventType.InfuraIsBlocked,
+            eventType: 'NetworkController:infuraIsBlocked',
             count: 0,
             operation: async () => {
               await operation(controller);
@@ -6088,7 +6111,10 @@ function lookupNetworkTests({
  * @returns The controller messenger.
  */
 function buildMessenger() {
-  return new ControllerMessenger<never, NetworkControllerEvent>();
+  return new ControllerMessenger<
+    NetworkControllerAction,
+    NetworkControllerEvent
+  >();
 }
 
 /**
@@ -6098,17 +6124,14 @@ function buildMessenger() {
  * @returns The network controller restricted messenger.
  */
 function buildNetworkControllerMessenger(messenger = buildMessenger()) {
-  return messenger.getRestricted<
-    'NetworkController',
-    never,
-    NetworkControllerEventType
-  >({
+  return messenger.getRestricted({
     name: 'NetworkController',
+    allowedActions: ['NetworkController:getProviderConfig'],
     allowedEvents: [
-      NetworkControllerEventType.NetworkDidChange,
-      NetworkControllerEventType.NetworkWillChange,
-      NetworkControllerEventType.InfuraIsBlocked,
-      NetworkControllerEventType.InfuraIsUnblocked,
+      'NetworkController:networkDidChange',
+      'NetworkController:networkWillChange',
+      'NetworkController:infuraIsBlocked',
+      'NetworkController:infuraIsUnblocked',
     ],
   });
 }
@@ -6120,7 +6143,10 @@ type WithControllerCallback<ReturnValue> = ({
   controller,
 }: {
   controller: NetworkController;
-  messenger: ControllerMessenger<never, NetworkControllerEvent>;
+  messenger: ControllerMessenger<
+    NetworkControllerAction,
+    NetworkControllerEvent
+  >;
 }) => Promise<ReturnValue> | ReturnValue;
 
 /**
@@ -6144,22 +6170,21 @@ type WithControllerArgs<ReturnValue> =
  *
  * @param args - Either a function, or an options bag + a function. The options
  * bag is equivalent to the options that NetworkController takes (although
- * `messenger` is filled in if not given); the function will be called with the
- * built controller.
+ * `messenger` and `infuraProjectId` are  filled in if not given); the function
+ * will be called with the built controller.
  * @returns Whatever the callback returns.
  */
 async function withController<ReturnValue>(
   ...args: WithControllerArgs<ReturnValue>
 ): Promise<ReturnValue> {
-  const [givenNetworkControllerOptions, fn] =
-    args.length === 2 ? args : [{}, args[0]];
+  const [{ ...rest }, fn] = args.length === 2 ? args : [{}, args[0]];
   const messenger = buildMessenger();
   const restrictedMessenger = buildNetworkControllerMessenger(messenger);
   const controller = new NetworkController({
-    infuraProjectId: DEFAULT_INFURA_PROJECT_ID,
     messenger: restrictedMessenger,
     trackMetaMetricsEvent: jest.fn(),
-    ...givenNetworkControllerOptions,
+    infuraProjectId: 'infura-project-id',
+    ...rest,
   });
   try {
     return await fn({ controller, messenger });
