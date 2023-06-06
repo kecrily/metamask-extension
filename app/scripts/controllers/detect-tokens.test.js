@@ -9,7 +9,7 @@ import {
   TokensController,
   AssetsContractController,
 } from '@metamask/assets-controllers';
-import { convertHexToDecimal } from '@metamask/controller-utils';
+import { convertHexToDecimal, toHex } from '@metamask/controller-utils';
 import { NETWORK_TYPES } from '../../../shared/constants/network';
 import { toChecksumHexAddress } from '../../../shared/modules/hexstring-utils';
 import DetectTokensController from './detect-tokens';
@@ -204,8 +204,7 @@ describe('DetectTokensController', function () {
       name: 'TokenListController',
     });
     tokenListController = new TokenListController({
-      // TODO: This should be 0x1
-      chainId: '1',
+      chainId: toHex(1),
       preventPollingOnNetworkRestart: false,
       onNetworkStateChange: sinon.spy(),
       onPreferencesStateChange: sinon.spy(),
@@ -247,24 +246,7 @@ describe('DetectTokensController', function () {
       onPreferencesStateChange: preferences.store.subscribe.bind(
         preferences.store,
       ),
-      onNetworkStateChange: (cb) =>
-        networkControllerMessenger.subscribe(
-          'NetworkController:networkDidChange',
-          () => {
-            // TODO: There is no need to do this
-            const networkState = network.store.getState();
-            const modifiedNetworkState = {
-              ...networkState,
-              providerConfig: {
-                ...networkState.providerConfig,
-                chainId: convertHexToDecimal(
-                  networkState.providerConfig.chainId,
-                ),
-              },
-            };
-            return cb(modifiedNetworkState);
-          },
-        ),
+      onNetworkStateChange: network.store.subscribe.bind(network.store),
     });
   });
 
@@ -313,8 +295,7 @@ describe('DetectTokensController', function () {
       name: 'TokenListController',
     });
     tokenListController = new TokenListController({
-      // TODO: This should be a hex string
-      chainId: '11155111',
+      chainId: toHex(11155111),
       onNetworkStateChange: sinon.spy(),
       onPreferencesStateChange: sinon.spy(),
       messenger: tokenListMessengerSepolia,
