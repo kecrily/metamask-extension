@@ -35,6 +35,7 @@ import {
   AccountListMenu,
   NetworkListMenu,
   AccountDetails,
+  ImportTokensPopover,
 } from '../../components/multichain';
 import UnlockPage from '../unlock-page';
 import Alerts from '../../components/app/alerts';
@@ -564,15 +565,7 @@ export default class Routes extends Component {
           <AccountDetails address={accountDetailsAddress} />
         ) : null}
         {isImportTokensPopoverOpen ? (
-          <Popover
-            onClose={() => {
-              clearPendingTokens();
-              hideImportTokensPopover();
-            }}
-            title="Import Tokens"
-          >
-            <ImportTokenPage />
-          </Popover>
+          <ImportTokensPopover onClose={() => hideImportTokensPopover()} />
         ) : null}
         <div className="main-container-wrapper">
           {isLoading ? <Loading loadingMessage={loadMessage} /> : null}
