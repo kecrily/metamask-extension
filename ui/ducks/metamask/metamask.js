@@ -17,10 +17,7 @@ import { setCustomGasLimit, setCustomGasPrice } from '../gas/gas.duck';
 import { KeyringType } from '../../../shared/constants/keyring';
 import { isEqualCaseInsensitive } from '../../../shared/modules/string-utils';
 import { stripHexPrefix } from '../../../shared/modules/hexstring-utils';
-import {
-  decGWEIToHexWEI,
-  hexToDecimal,
-} from '../../../shared/modules/conversion.utils';
+import { decGWEIToHexWEI } from '../../../shared/modules/conversion.utils';
 
 const initialState = {
   isInitialized: false,
