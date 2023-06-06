@@ -30,7 +30,6 @@ import Header from './signature-request-siwe-header';
 import Message from './signature-request-siwe-message';
 
 export default function SignatureRequestSIWE({ txData, cancel, sign }) {
-
   const t = useContext(I18nContext);
   const allAccounts = useSelector(accountsWithSendEtherInfoSelector);
   const subjectMetadata = useSelector(getSubjectMetadata);
