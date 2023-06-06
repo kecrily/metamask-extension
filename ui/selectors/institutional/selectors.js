@@ -1,6 +1,7 @@
 import { toChecksumAddress } from 'ethereumjs-util';
 import { getSelectedIdentity, getAccountType } from '../selectors';
 import { getProviderConfig } from '../../ducks/metamask/metamask';
+import { hexToDecimal } from '../../../shared/modules/conversion.utils';
 
 export function getWaitForConfirmDeepLinkDialog(state) {
   return state.metamask.waitForConfirmDeepLinkDialog;
@@ -57,10 +58,10 @@ export function getIsCustodianSupportedChain(state) {
       ? getCustodyAccountSupportedChains(state, selectedIdentity.address)
       : null;
 
+  // TODO: Ensure this is tested
   return supportedChains?.supportedChains
     ? supportedChains.supportedChains.includes(
-        // TODO: This doesn't seem right, should use BN to convert from hex
-        Number(providerConfig.chainId).toString(),
+        hexToDecimal(providerConfig.chainId),
       )
     : true;
 }
