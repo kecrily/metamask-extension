@@ -8,8 +8,6 @@ import IdleTimer from 'react-idle-timer';
 import browserAPI from 'webextension-polyfill';
 ///: END:ONLY_INCLUDE_IN
 
-import { hideImportTokensPopover } from '../../store/actions';
-
 import SendTransactionScreen from '../send';
 import Swaps from '../swaps';
 import ConfirmTransaction from '../confirm-transaction';
@@ -115,8 +113,6 @@ import { SEND_STAGES } from '../../ducks/send';
 import DeprecatedTestNetworks from '../../components/ui/deprecated-test-networks/deprecated-test-networks';
 import NewNetworkInfo from '../../components/ui/new-network-info/new-network-info';
 import { ThemeType } from '../../../shared/constants/preferences';
-import Popover from '../../components/ui/popover/popover.component';
-import ImportToken from '../swaps/import-token/import-token';
 
 export default class Routes extends Component {
   static propTypes = {
@@ -158,7 +154,7 @@ export default class Routes extends Component {
     toggleNetworkMenu: PropTypes.func,
     accountDetailsAddress: PropTypes.string,
     isImportTokensPopoverOpen: PropTypes.bool.isRequired,
-    clearPendingTokens: PropTypes.func.isRequired,
+    hideImportTokensPopover: PropTypes.func.isRequired,
   };
 
   static contextTypes = {
@@ -505,7 +501,7 @@ export default class Routes extends Component {
       accountDetailsAddress,
       isImportTokensPopoverOpen,
       location,
-      clearPendingTokens,
+      hideImportTokensPopover,
     } = this.props;
     const loadMessage =
       loadingMessage || isNetworkLoading
