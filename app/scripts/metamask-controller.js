@@ -4455,7 +4455,6 @@ export default class MetamaskController extends EventEmitter {
       this.preferencesController.store.getState();
 
     if (transactionSecurityCheckEnabled) {
-      // TODO: Don't need to use Number here, it already is one
       const chainId = Number(
         hexToDecimal(
           this.networkController.store.getState().providerConfig.chainId,

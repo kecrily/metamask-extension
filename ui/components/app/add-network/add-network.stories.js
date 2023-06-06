@@ -27,7 +27,6 @@ export default {
   args: {
     featuredRPCS: [
       {
-        // TODO: Do these chain IDs need to be hex strings rather than decimal?
         chainId: '42161',
         nickname: 'Arbitrum One',
         rpcUrl: 'https://arbitrum-mainnet.infura.io/v3/{INFURA_API_KEY}',
