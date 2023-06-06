@@ -35,7 +35,6 @@ const props = {
   networksToRender: defaultNetworks,
   selectedNetwork: {
     rpcUrl: 'http://localhost:8545',
-    // TODO: Does this need to be a hex string rather than a decimal string?
     chainId: '1337',
     ticker: 'ETH',
     label: 'LocalHost',
