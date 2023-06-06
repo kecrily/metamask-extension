@@ -34,7 +34,7 @@ export function isPrefixedFormattedHexString(value: unknown) {
  * @param chainId - ChainID of network
  * @returns Whether the current network supports token detection
  */
-export function isTokenDetectionEnabledForNetwork(chainId: string) {
+export function isTokenDetectionEnabledForNetwork(chainId: string | undefined) {
   switch (chainId) {
     case CHAIN_IDS.MAINNET:
     case CHAIN_IDS.BSC:
