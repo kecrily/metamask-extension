@@ -1,4 +1,3 @@
-import { Hex } from '@metamask/utils';
 import { CHAIN_IDS, MAX_SAFE_CHAIN_ID } from '../constants/network';
 
 /**

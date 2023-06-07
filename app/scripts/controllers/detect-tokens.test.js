@@ -9,7 +9,7 @@ import {
   TokensController,
   AssetsContractController,
 } from '@metamask/assets-controllers';
-import { convertHexToDecimal, toHex } from '@metamask/controller-utils';
+import { toHex } from '@metamask/controller-utils';
 import { NETWORK_TYPES } from '../../../shared/constants/network';
 import { toChecksumHexAddress } from '../../../shared/modules/hexstring-utils';
 import DetectTokensController from './detect-tokens';
