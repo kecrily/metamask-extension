@@ -188,6 +188,7 @@ describe('MetaMaskController', function () {
   });
 
   describe('#createNewVaultAndRestore', function () {
+    // TODO: THIS FAILS
     it('two successive calls with same inputs give same result', async function () {
       const result1 = await metamaskController.createNewVaultAndRestore(
         'test@123',
@@ -202,6 +203,7 @@ describe('MetaMaskController', function () {
   });
 
   describe('#createNewVaultAndKeychain', function () {
+    // TODO: THIS FAILS
     it('two successive calls with same inputs give same result', async function () {
       const result1 = await metamaskController.createNewVaultAndKeychain(
         'test@123',

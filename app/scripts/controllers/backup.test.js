@@ -2,6 +2,8 @@ import { strict as assert } from 'assert';
 import sinon from 'sinon';
 import BackupController from './backup';
 
+// TODO: Get these tests working
+
 function getMockPreferencesController() {
   const mcState = {
     getSelectedAddress: sinon.stub().returns('0x01'),
@@ -57,18 +59,11 @@ function getMockAddressBookController() {
 }
 
 function getMockNetworkController() {
-  const mcState = {
+  const state = {
     networkConfigurations: {},
-
-    update: (store) => (mcState.store = store),
   };
 
-  mcState.store = {
-    getState: sinon.stub().returns(mcState),
-    updateState: (store) => (mcState.store = store),
-  };
-
-  return mcState;
+  return { state };
 }
 
 const jsonData = JSON.stringify({

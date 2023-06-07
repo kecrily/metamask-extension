@@ -31,6 +31,8 @@ export default class BackupController {
     }
 
     if (network) {
+      // TODO: What do we do about this? Maybe add some kind of `loadState`
+      // method to NetworkController?
       this.networkController.store.updateState(network);
     }
 
@@ -48,7 +50,7 @@ export default class BackupController {
       addressBook: { ...this.addressBookController.state },
       network: {
         networkConfigurations:
-          this.networkController.store.getState().networkConfigurations,
+          this.networkController.state.networkConfigurations,
       },
     };
 
