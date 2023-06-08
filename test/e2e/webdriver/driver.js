@@ -498,13 +498,28 @@ class Driver {
           (err) => err.description !== undefined,
         );
 
-        const [eventDescription] = eventDescriptions;
-        const ignore = ignoredErrorMessages.some((message) =>
-          eventDescription?.description.includes(message),
-        );
-        if (!ignore) {
-          errors.push(eventDescription?.description);
-          logBrowserError(failOnConsoleError, eventDescription?.description);
+        // We want to make sure to ignore warnings. The event objects for these
+        // will look something like:
+        //
+        //   {
+        //     type: 'error',
+        //     timestamp: 2023-06-08T03:22:43.447Z,
+        //     args: [
+        //       {
+        //         type: 'string',
+        //         value: 'Warning: Failed prop type: Invalid prop `borderColor` supplied to `AvatarAccount`.'
+        //       }
+        //     ]
+        //   }
+        if (eventDescriptions.length > 0) {
+          const [eventDescription] = eventDescriptions;
+          const ignore = ignoredErrorMessages.some((message) =>
+            eventDescription?.description.includes(message),
+          );
+          if (!ignore) {
+            errors.push(eventDescription?.description);
+            logBrowserError(failOnConsoleError, eventDescription?.description);
+          }
         }
       }
     });
